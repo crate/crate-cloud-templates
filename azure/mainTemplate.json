@@ -450,7 +450,7 @@
         "autoUpgradeMinorVersion": true,
         "protectedSettings": {
           "fileUris": [
-            "[concat('https://cecrateazuretest.blob.', environment().suffixes.storage, '/publictest/install-crate.sh?sp=r&st=2021-10-12T09:24:20Z&se=2022-10-12T17:24:20Z&spr=https&sv=2020-08-04&sr=b&sig=fYcQnfFKMjA2KTo5CA%2FwV1%2B1xD1JUjYo75AqqrDuvl0%3D')]"
+            "https://raw.githubusercontent.com/crate/crate-cloud-templates/main/azure/install-crate.sh"
           ],
           "commandToExecute": "[concat('bash install-crate.sh \"', variables('virtualMachineName'), '\" ', parameters('numberOfInstances'), ' \"', variables('crateDbAdminUsername'), '\" \"', parameters('crateDbAdminPassword'), '\"')]"
         }
