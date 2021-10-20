@@ -105,9 +105,9 @@
             "label": "Virtual machine size",
             "toolTip": "The size of the virtual machine",
             "recommendedSizes": [
-              "Standard_DC1s_v2",
-              "Standard_DC2s_v2",
-              "Standard_DC4s_v2"
+              "Standard_D2s_v4",
+              "Standard_D4s_v4",
+              "Standard_D8s_v4"
             ],
             "osPlatform": "Linux",
             "imageReference": {
