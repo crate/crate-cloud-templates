@@ -1,0 +1,231 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "basics": [
+      {
+        "name": "VMConfig",
+        "type": "Microsoft.Common.Section",
+        "label": "VM Configuration",
+        "elements": [
+          {
+            "name": "adminUsername",
+            "type": "Microsoft.Compute.UserNameTextBox",
+            "label": "User name",
+            "toolTip": "User name of the system user",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-z0-9A-Z]{1,30}$",
+              "validationMessage": "Only alphanumeric characters are allowed, and the value must be 1-30 characters long."
+            },
+            "osPlatform": "Linux",
+            "visible": true
+          },
+          {
+            "name": "adminPassword",
+            "type": "Microsoft.Compute.CredentialsCombo",
+            "label": {
+              "authenticationType": "Authentication type",
+              "password": "Password",
+              "confirmPassword": "Confirm password",
+              "sshPublicKey": "SSH public key"
+            },
+            "toolTip": {
+              "authenticationType": "Type of authentication for connecting to the Azure VMs",
+              "password": "System user password for SSH authentication",
+              "sshPublicKey": "System user's public key for SSH authentication"
+            },
+            "constraints": {
+              "required": true,
+              "customPasswordRegex": "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{12,}$",
+              "customValidationMessage": "The password must be alphanumeric, contain at least 12 characters, and have at least 1 letter and 1 number."
+            },
+            "options": {
+              "hideConfirmation": false,
+              "hidePassword": false
+            },
+            "osPlatform": "Linux",
+            "visible": true
+          }
+        ]
+      },
+      {
+        "name": "CrateDBConfig",
+        "type": "Microsoft.Common.Section",
+        "label": "CrateDB Configuration",
+        "elements": [
+          {
+            "name": "crateDbAdminPassword",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "Password",
+              "confirmPassword": "Confirm password"
+            },
+            "toolTip": "Password of the CrateDB admin user",
+            "constraints": {
+              "required": true
+            },
+            "options": {
+              "hideConfirmation": false
+            },
+            "visible": true
+          }
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "name": "infrastructureConfig",
+        "label": "Infrastructure settings",
+        "subLabel": {
+          "preValidation": "Configure the infrastructure settings",
+          "postValidation": "Done"
+        },
+        "bladeTitle": "Infrastructure settings",
+        "elements": [
+          {
+            "name": "numberOfInstances",
+            "type": "Microsoft.Common.Slider",
+            "min": 1,
+            "max": 15,
+            "label": "Number of nodes",
+            "subLabel": "nodes",
+            "defaultValue": 3,
+            "showStepMarkers": false,
+            "toolTip": "The number of nodes the CrateDB cluster will consist of",
+            "constraints": {
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "virtualMachineSize",
+            "type": "Microsoft.Compute.SizeSelector",
+            "label": "Virtual machine size",
+            "toolTip": "The size of the virtual machine",
+            "recommendedSizes": [
+              "Standard_DC1s_v2",
+              "Standard_DC2s_v2",
+              "Standard_DC4s_v2"
+            ],
+            "osPlatform": "Linux",
+            "imageReference": {
+              "publisher": "canonical",
+              "offer": "0001-com-ubuntu-server-focal",
+              "sku": "20_04-lts-gen2",
+              "version": "latest"
+            },
+            "count": "[steps('infrastructureConfig').numberOfInstances]",
+            "visible": true
+          },
+          {
+            "name": "diskSizeGB",
+            "type": "Microsoft.Common.Slider",
+            "min": 50,
+            "max": 1023,
+            "label": "Disk Size",
+            "subLabel": "GB",
+            "defaultValue": 50,
+            "showStepMarkers": false,
+            "toolTip": "Size of the VM's disk in GB",
+            "constraints": {
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "network",
+            "type": "Microsoft.Network.VirtualNetworkCombo",
+            "label": {
+              "virtualNetwork": "Virtual network",
+              "subnets": "Subnet"
+            },
+            "toolTip": {
+              "virtualNetwork": "The virtual network to deploy the CrateDB cluster to",
+              "subnets": "The subnet in which to deploy the CrateDB cluster to"
+            },
+            "defaultValue": {
+              "name": "vnet01",
+              "addressPrefixSize": "/24"
+            },
+            "constraints": {
+              "minAddressPrefixSize": "/24"
+            },
+            "options": {
+              "hideExisting": false
+            },
+            "subnets": {
+              "subnet": {
+                "label": "Subnet",
+                "defaultValue": {
+                  "name": "subnet",
+                  "addressPrefixSize": "/24"
+                },
+                "constraints": {
+                  "minAddressPrefixSize": "/24",
+                  "minAddressCount": 12,
+                  "requireContiguousAddresses": true
+                }
+              }
+            },
+            "visible": true
+          },
+          {
+            "name": "publicIpAddress",
+            "type": "Microsoft.Network.PublicIpAddressCombo",
+            "label": {
+              "publicIpAddress": "Public IP address",
+              "domainNameLabel": "Domain name label"
+            },
+            "toolTip": {
+              "publicIPAddress": "The public IP address of the load balancer",
+              "domainNameLabel": "The domain name label assignes to the IP address of the load balancer"
+            },
+            "defaultValue": {
+              "publicIpAddressName": "crateip01",
+              "domainNameLabel": "cratedb"
+            },
+            "constraints": {
+              "required": {
+                "domainNameLabel": true
+              }
+            },
+            "options": {
+              "hideNone": true,
+              "hideDomainNameLabel": false,
+              "hideExisting": false
+            },
+            "visible": true
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "location": "[location()]",
+
+      "virtualMachineSize": "[steps('infrastructureConfig').virtualMachineSize]",
+      "numberOfInstances": "[steps('infrastructureConfig').numberOfInstances]",
+      "diskSizeGB": "[steps('infrastructureConfig').diskSizeGB]",
+
+      "adminUsername": "[basics('VMConfig').adminUsername]",
+      "adminPassword": "[basics('VMConfig').adminPassword.password]",
+      "sshPublicKey": "[basics('VMConfig').adminPassword.sshPublicKey]",
+      "authenticationType": "[basics('VMConfig').adminPassword.authenticationType]",
+      "crateDbAdminPassword": "[basics('CrateDBConfig').crateDbAdminPassword]",
+
+      "virtualNetworkNewOrExisting": "[steps('infrastructureConfig').network.newOrExisting]",
+      "virtualNetworkName": "[steps('infrastructureConfig').network.name]",
+      "networkAddressPrefixes": "[steps('infrastructureConfig').network.addressPrefixes]",
+      "subnetName": "[steps('infrastructureConfig').network.subnets.subnet.name]",
+      "networkSubnetPrefix": "[steps('infrastructureConfig').network.subnets.subnet.addressPrefix]",
+      "virtualNetworkResourceGroupName": "[steps('infrastructureConfig').network.resourceGroup]",
+      "dnsName": "[steps('infrastructureConfig').publicIpAddress.domainNameLabel]",
+
+      "publicIpNewOrExisting": "[steps('infrastructureConfig').publicIpAddress.newOrExistingOrNone]",
+      "publicIpAddressName": "[steps('infrastructureConfig').publicIpAddress.name]",
+      "publicIpResourceGroupName": "[steps('infrastructureConfig').publicIpAddress.resourceGroup]",
+      "publicIpSku": "[steps('infrastructureConfig').publicIpAddress.sku]"
+    }
+  }
+}
