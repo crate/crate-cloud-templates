@@ -135,6 +135,41 @@
       "metadata": {
         "description": "SKU of the public IP address"
       }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The name of the already existing Key Vault"
+      }
+    },
+    "keyVaultId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The ID of the already existing Key Vault"
+      }
+    },
+    "keyVaultResourceGroupName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The resource group of the already existing Key Vault"
+      }
+    },
+    "certificateUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "URL of the Key Vault certificate to use for SSL encryption"
+      }
+    },
+    "certificateName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the Key Vault certificate to use for SSL encryption"
+      }
     }
   },
   "variables": {
@@ -142,6 +177,8 @@
     "lbName": "LB-CrateDB",
     "crateDbAdminUsername": "admin",
     "virtualMachineName": "CrateDB",
+    "managedIdentityName": "ID-CrateDB-SSL",
+    "certificateFileName": "[concat(parameters('keyVaultName'), '.', parameters('certificateName'))]",
     "networkInterfaceName": "NIC-CrateDB",
     "networkSecurityGroupName": "NSG-CrateDB",
     "linuxConfiguration": {
@@ -171,6 +208,49 @@
       }
     },
     {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2018-11-30",
+      "name": "[variables('managedIdentityName')]",
+      "location": "[parameters('location')]",
+      "properties": {}
+    },
+    {
+      "apiVersion": "2021-01-01",
+      "name": "KeyVaultSetup",
+      "type": "Microsoft.Resources/deployments",
+      "resourceGroup": "[parameters('keyVaultResourceGroupName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/accessPolicies",
+              "apiVersion": "2019-09-01",
+              "name": "[concat(parameters('keyVaultName'), '/add')]",
+              "properties": {
+                "accessPolicies": [
+                  {
+                    "objectId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName')), '2018-11-30').principalId]",
+                    "permissions": {
+                      "secrets": [
+                        "get"
+                      ]
+                    },
+                    "tenantId": "[subscription().tenantId]"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
       "type": "Microsoft.Compute/availabilitySets",
       "name": "[variables('availabilitySetName')]",
       "apiVersion": "2021-07-01",
@@ -184,6 +264,35 @@
       }
     },
     {
+      "copy": {
+        "name": "virtualMachineExtensionsKeyVaultLoop",
+        "count": "[parameters('numberOfInstances')]"
+      },
+      "condition": "[not(equals(parameters('keyVaultId'), ''))]",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('virtualMachineName'), '-', copyIndex(), '/keyvault')]",
+      "apiVersion": "2021-04-01",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "virtualMachineLoop"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Azure.KeyVault",
+        "type": "KeyVaultForLinux",
+        "typeHandlerVersion": "2.0",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "secretsManagementSettings": {
+            "pollingIntervalInS": "3600",
+            "certificateStoreLocation": "/etc/keyVaultCertificates",
+            "observedCertificates": [
+              "[parameters('certificateUrl')]"
+            ]
+          }
+        }
+      }
+    },
+    {
       "name": "[concat(variables('virtualMachineName'), '-', copyIndex())]",
       "type": "Microsoft.Compute/virtualMachines",
       "apiVersion": "2021-07-01",
@@ -194,8 +303,16 @@
       },
       "dependsOn": [
         "nicLoop",
-        "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]"
+        "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]",
+        "[resourceId(parameters('keyVaultResourceGroupName'), 'Microsoft.Resources/deployments', 'KeyVaultSetup')]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
       ],
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]": {}
+        }
+      },
       "properties": {
         "availabilitySet": {
           "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]"
@@ -452,7 +569,7 @@
           "fileUris": [
             "https://raw.githubusercontent.com/crate/crate-cloud-templates/main/azure/install-crate.sh"
           ],
-          "commandToExecute": "[concat('bash install-crate.sh \"', variables('virtualMachineName'), '\" ', parameters('numberOfInstances'), ' \"', variables('crateDbAdminUsername'), '\" \"', parameters('crateDbAdminPassword'), '\"')]"
+          "commandToExecute": "[concat('bash install-crate.sh \"', variables('virtualMachineName'), '\" ', parameters('numberOfInstances'), ' \"', variables('crateDbAdminUsername'), '\" \"', parameters('crateDbAdminPassword'), '\" \"', variables('certificateFileName'), '\"')]"
         }
       }
     }

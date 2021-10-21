@@ -70,6 +70,27 @@
               "hideConfirmation": false
             },
             "visible": true
+          },
+          {
+            "name": "SSLEncrypt",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Use a Key Vault certificate to enable SSL encryption",
+            "defaultValue": "No",
+            "toolTip": "If yes, an SSL certificate will be retrieved from an existing Key Vault",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Yes",
+                  "value": true
+                },
+                {
+                  "label": "No",
+                  "value": false
+                }
+              ],
+              "required": true
+            },
+            "visible": true
           }
         ]
       }
@@ -197,6 +218,31 @@
               "hideExisting": false
             },
             "visible": true
+          },
+          {
+            "name": "keyVaultCertificateSelection",
+            "type": "Microsoft.KeyVault.KeyVaultCertificateSelector",
+            "visible": "[basics('CrateDBConfig').SSLEncrypt]",
+            "toolTip": "Select certificate for SSL encryption",
+            "label": "KeyVault certificates selection"
+          },
+          {
+            "name": "keyVaultResourceGroupName",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Key Vault Resource Group Name",
+            "defaultValue": "",
+            "toolTip": "Provide the resource group name of the selected Key Vault",
+            "multiLine": false,
+            "constraints": {
+              "required": "[basics('CrateDBConfig').SSLEncrypt]",
+              "validations": [
+                {
+                  "regex": "^[.*]{1,100}$",
+                  "message": "The resource group name of the selected Key Vault."
+                }
+              ]
+            },
+            "visible": "[basics('CrateDBConfig').SSLEncrypt]"
           }
         ]
       }
@@ -213,6 +259,11 @@
       "sshPublicKey": "[basics('VMConfig').adminPassword.sshPublicKey]",
       "authenticationType": "[basics('VMConfig').adminPassword.authenticationType]",
       "crateDbAdminPassword": "[basics('CrateDBConfig').crateDbAdminPassword]",
+
+      "keyVaultResourceGroupName": "[steps('infrastructureConfig').keyVaultCertificateSelection.keyVaultResourceGroupName]",
+      "keyVaultName": "[steps('infrastructureConfig').keyVaultCertificateSelection.keyVaultName]",
+      "certificateUrl": "[steps('infrastructureConfig').keyVaultCertificateSelection.certificateUrl]",
+      "certificateName": "[steps('infrastructureConfig').keyVaultCertificateSelection.certificateName]",
 
       "virtualNetworkNewOrExisting": "[steps('infrastructureConfig').network.newOrExisting]",
       "virtualNetworkName": "[steps('infrastructureConfig').network.name]",
