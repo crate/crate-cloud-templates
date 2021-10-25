@@ -120,7 +120,7 @@
     },
     "publicIpAddressName": {
       "type": "string",
-      "defaultValue": "cratetestip"
+      "defaultValue": "IP-CrateDB"
     },
     "publicIpResourceGroupName": {
       "type": "string",
@@ -346,7 +346,7 @@
         "networkProfile": {
           "networkInterfaces": [
             {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('networkInterfaceName'), copyindex()))]"
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('networkInterfaceName'), copyIndex()))]"
             }
           ]
         }
@@ -373,7 +373,7 @@
       }
     },
     {
-      "name": "[concat(variables('networkInterfaceName'), copyindex())]",
+      "name": "[concat(variables('networkInterfaceName'), copyIndex())]",
       "type": "Microsoft.Network/networkInterfaces",
       "apiVersion": "2021-05-01",
       "location": "[parameters('location')]",
