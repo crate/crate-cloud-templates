@@ -13,7 +13,7 @@
     "numberOfInstances": {
       "type": "int",
       "defaultValue": 3,
-      "minValue": 2,
+      "minValue": 1,
       "maxValue": 99,
       "metadata": {
         "description": "Number of VMs to deploy"
