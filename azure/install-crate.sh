@@ -70,19 +70,19 @@ ssl.keystore_password: ""
 ssl.keystore_key_password: ""
 CONFIG
   )
+
+  openssl pkcs12 \
+    -export \
+    -out /etc/crate/certificate \
+    -inkey "/etc/keyVaultCertificates/${certificateFileName}" \
+    -in "/etc/keyVaultCertificates/${certificateFileName}" \
+    -password pass:""
+  chmod 644 /etc/crate/certificate
 else
   protocol="http"
 fi
 
 echo "$crateConfig" > /etc/crate/crate.yml
-
-openssl pkcs12 \
-  -export \
-  -out /etc/crate/certificate \
-  -inkey "/etc/keyVaultCertificates/${certificateFileName}" \
-  -in "/etc/keyVaultCertificates/${certificateFileName}" \
-  -password pass:""
-chmod 644 /etc/crate/certificate
 
 apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y crate
 
@@ -90,5 +90,8 @@ sleep 30
 httpSql "$protocol" "CREATE USER ${adminUsername} WITH (password = '${adminPassword}');"
 httpSql "$protocol" "GRANT ALL PRIVILEGES TO ${adminUsername};"
 
-chown crate:crate /etc/crate/certificate
-chmod 640 /etc/crate/certificate
+if [ -n "$certificateFileName" ]
+then
+  chown crate:crate /etc/crate/certificate
+  chmod 640 /etc/crate/certificate
+fi

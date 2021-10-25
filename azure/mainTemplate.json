@@ -152,7 +152,7 @@
     },
     "keyVaultResourceGroupName": {
       "type": "string",
-      "defaultValue": "",
+      "defaultValue": "[resourceGroup().name]",
       "metadata": {
         "description": "The resource group of the already existing Key Vault"
       }
@@ -178,7 +178,8 @@
     "crateDbAdminUsername": "admin",
     "virtualMachineName": "CrateDB",
     "managedIdentityName": "ID-CrateDB-SSL",
-    "certificateFileName": "[concat(parameters('keyVaultName'), '.', parameters('certificateName'))]",
+    "useSSL": "[not(equals(parameters('keyVaultId'), ''))]",
+    "certificateFileName": "[if(variables('useSSL'), concat(parameters('keyVaultName'), '.', parameters('certificateName')), '')]",
     "networkInterfaceName": "NIC-CrateDB",
     "networkSecurityGroupName": "NSG-CrateDB",
     "linuxConfiguration": {
@@ -219,6 +220,7 @@
       "name": "KeyVaultSetup",
       "type": "Microsoft.Resources/deployments",
       "resourceGroup": "[parameters('keyVaultResourceGroupName')]",
+      "condition": "[variables('useSSL')]",
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
       ],
@@ -268,7 +270,7 @@
         "name": "virtualMachineExtensionsKeyVaultLoop",
         "count": "[parameters('numberOfInstances')]"
       },
-      "condition": "[not(equals(parameters('keyVaultId'), ''))]",
+      "condition": "[variables('useSSL')]",
       "type": "Microsoft.Compute/virtualMachines/extensions",
       "name": "[concat(variables('virtualMachineName'), '-', copyIndex(), '/keyvault')]",
       "apiVersion": "2021-04-01",
@@ -581,7 +583,7 @@
     },
     "crateDBApplicationURL": {
       "type": "string",
-      "value": "[concat('http://', reference(resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIpAddressName')), '2021-05-01').dnsSettings.fqdn, ':4200')]"
+      "value": "[concat('http', if(variables('useSSL'), 's', ''), '://', reference(resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIpAddressName')), '2021-05-01').dnsSettings.fqdn, ':4200')]"
     }
   }
 }
