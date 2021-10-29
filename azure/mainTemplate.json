@@ -197,7 +197,7 @@
   "resources": [
     {
       "apiVersion": "2021-01-01",
-      "name": "pid-3e435af0-09e6-4d69-b4f0-b430165e1064",
+      "name": "pid-9856bcef-2951-4045-95c1-5332d6903087-partnercenter",
       "type": "Microsoft.Resources/deployments",
       "properties": {
         "mode": "Incremental",
