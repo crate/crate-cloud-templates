@@ -13,7 +13,7 @@
     "numberOfInstances": {
       "type": "int",
       "defaultValue": 3,
-      "minValue": 2,
+      "minValue": 1,
       "maxValue": 99,
       "metadata": {
         "description": "Number of VMs to deploy"
@@ -120,7 +120,7 @@
     },
     "publicIpAddressName": {
       "type": "string",
-      "defaultValue": "cratetestip"
+      "defaultValue": "IP-CrateDB"
     },
     "publicIpResourceGroupName": {
       "type": "string",
@@ -135,6 +135,41 @@
       "metadata": {
         "description": "SKU of the public IP address"
       }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The name of the already existing Key Vault"
+      }
+    },
+    "keyVaultId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The ID of the already existing Key Vault"
+      }
+    },
+    "keyVaultResourceGroupName": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().name]",
+      "metadata": {
+        "description": "The resource group of the already existing Key Vault"
+      }
+    },
+    "certificateUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "URL of the Key Vault certificate to use for SSL encryption"
+      }
+    },
+    "certificateName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the Key Vault certificate to use for SSL encryption"
+      }
     }
   },
   "variables": {
@@ -142,6 +177,9 @@
     "lbName": "LB-CrateDB",
     "crateDbAdminUsername": "admin",
     "virtualMachineName": "CrateDB",
+    "managedIdentityName": "ID-CrateDB-SSL",
+    "useSSL": "[not(equals(parameters('keyVaultId'), ''))]",
+    "certificateFileName": "[if(variables('useSSL'), concat(parameters('keyVaultName'), '.', parameters('certificateName')), '')]",
     "networkInterfaceName": "NIC-CrateDB",
     "networkSecurityGroupName": "NSG-CrateDB",
     "linuxConfiguration": {
@@ -159,7 +197,7 @@
   "resources": [
     {
       "apiVersion": "2021-01-01",
-      "name": "pid-3e435af0-09e6-4d69-b4f0-b430165e1064",
+      "name": "pid-9856bcef-2951-4045-95c1-5332d6903087-partnercenter",
       "type": "Microsoft.Resources/deployments",
       "properties": {
         "mode": "Incremental",
@@ -167,6 +205,50 @@
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
           "contentVersion": "1.0.0.0",
           "resources": []
+        }
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2018-11-30",
+      "name": "[variables('managedIdentityName')]",
+      "location": "[parameters('location')]",
+      "properties": {}
+    },
+    {
+      "apiVersion": "2021-01-01",
+      "name": "KeyVaultSetup",
+      "type": "Microsoft.Resources/deployments",
+      "resourceGroup": "[parameters('keyVaultResourceGroupName')]",
+      "condition": "[variables('useSSL')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/accessPolicies",
+              "apiVersion": "2019-09-01",
+              "name": "[concat(parameters('keyVaultName'), '/add')]",
+              "properties": {
+                "accessPolicies": [
+                  {
+                    "objectId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName')), '2018-11-30').principalId]",
+                    "permissions": {
+                      "secrets": [
+                        "get"
+                      ]
+                    },
+                    "tenantId": "[subscription().tenantId]"
+                  }
+                ]
+              }
+            }
+          ]
         }
       }
     },
@@ -184,6 +266,35 @@
       }
     },
     {
+      "copy": {
+        "name": "virtualMachineExtensionsKeyVaultLoop",
+        "count": "[parameters('numberOfInstances')]"
+      },
+      "condition": "[variables('useSSL')]",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(variables('virtualMachineName'), '-', copyIndex(), '/keyvault')]",
+      "apiVersion": "2021-04-01",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "virtualMachineLoop"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Azure.KeyVault",
+        "type": "KeyVaultForLinux",
+        "typeHandlerVersion": "2.0",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "secretsManagementSettings": {
+            "pollingIntervalInS": "3600",
+            "certificateStoreLocation": "/etc/keyVaultCertificates",
+            "observedCertificates": [
+              "[parameters('certificateUrl')]"
+            ]
+          }
+        }
+      }
+    },
+    {
       "name": "[concat(variables('virtualMachineName'), '-', copyIndex())]",
       "type": "Microsoft.Compute/virtualMachines",
       "apiVersion": "2021-07-01",
@@ -194,8 +305,16 @@
       },
       "dependsOn": [
         "nicLoop",
-        "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]"
+        "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]",
+        "[resourceId(parameters('keyVaultResourceGroupName'), 'Microsoft.Resources/deployments', 'KeyVaultSetup')]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
       ],
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]": {}
+        }
+      },
       "properties": {
         "availabilitySet": {
           "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('availabilitySetName'))]"
@@ -227,7 +346,7 @@
         "networkProfile": {
           "networkInterfaces": [
             {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('networkInterfaceName'), copyindex()))]"
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('networkInterfaceName'), copyIndex()))]"
             }
           ]
         }
@@ -254,7 +373,7 @@
       }
     },
     {
-      "name": "[concat(variables('networkInterfaceName'), copyindex())]",
+      "name": "[concat(variables('networkInterfaceName'), copyIndex())]",
       "type": "Microsoft.Network/networkInterfaces",
       "apiVersion": "2021-05-01",
       "location": "[parameters('location')]",
@@ -452,7 +571,7 @@
           "fileUris": [
             "https://raw.githubusercontent.com/crate/crate-cloud-templates/main/azure/install-crate.sh"
           ],
-          "commandToExecute": "[concat('bash install-crate.sh \"', variables('virtualMachineName'), '\" ', parameters('numberOfInstances'), ' \"', variables('crateDbAdminUsername'), '\" \"', parameters('crateDbAdminPassword'), '\"')]"
+          "commandToExecute": "[concat('bash install-crate.sh \"', variables('virtualMachineName'), '\" ', parameters('numberOfInstances'), ' \"', variables('crateDbAdminUsername'), '\" \"', parameters('crateDbAdminPassword'), '\" \"', variables('certificateFileName'), '\"')]"
         }
       }
     }
@@ -464,7 +583,7 @@
     },
     "crateDBApplicationURL": {
       "type": "string",
-      "value": "[concat('http://', reference(resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIpAddressName')), '2021-05-01').dnsSettings.fqdn, ':4200')]"
+      "value": "[concat('http', if(variables('useSSL'), 's', ''), '://', reference(resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIpAddressName')), '2021-05-01').dnsSettings.fqdn, ':4200')]"
     }
   }
 }
